@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 import os
 
 intents = discord.Intents.default()
@@ -9,7 +10,6 @@ intents.presences = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Qui salviamo chi preme il bottone
 presenti = set()
 presenza_attiva = False
 
@@ -23,7 +23,6 @@ class BottonePresenza(discord.ui.View):
         if not presenza_attiva:
             await interaction.response.send_message("❌ Presenza chiusa!", ephemeral=True)
             return
-        
         if interaction.user.id in presenti:
             await interaction.response.send_message("Hai già messo presenza! 🦅", ephemeral=True)
         else:
@@ -34,43 +33,54 @@ class BottonePresenza(discord.ui.View):
 async def on_ready():
     print(f"Bot acceso come {bot.user} 🟢")
     bot.add_view(BottonePresenza())
-    await bot.change_presence(activity=discord.Game(name="🦅 EAGLES | !presenza"))
+    try:
+        synced = await bot.tree.sync()
+        print(f"Comandi / sincronizzati: {len(synced)}")
+    except Exception as e:
+        print(f"Errore sync: {e}")
+    await bot.change_presence(activity=discord.Game(name="🦅 EAGLES | /presenza"))
 
-@bot.command()
-async def presenza(ctx):
+@bot.tree.command(name="ciao", description="Saluta gli Eagles")
+async def ciao(interaction: discord.Interaction):
+    await interaction.response.send_message(f"Ciao {interaction.user.mention}! 🦅 Forza EAGLES!")
+
+@bot.tree.command(name="eagles", description="Forza Eagles")
+async def eagles(interaction: discord.Interaction):
+    await interaction.response.send_message("🦅🦅🦅 FORZA EAGLES! 🦅🦅🦅")
+
+@bot.tree.command(name="presenza", description="Avvia la presenza con bottone")
+async def presenza(interaction: discord.Interaction):
     global presenti, presenza_attiva
     presenti = set()
     presenza_attiva = True
     view = BottonePresenza()
-    await ctx.send("🦅 **PRESENZA EAGLES - PREMI IL BOTTONE!** 🦅\n\nPremi ✅ sotto per segnare la presenza!", view=view)
+    await interaction.response.send_message("🦅 **PRESENZA EAGLES - PREMI IL BOTTONE!** 🦅\n\nPremi ✅ sotto per segnare la presenza!", view=view)
 
-@bot.command()
-async def stop(ctx):
+@bot.tree.command(name="lista", description="Vedi chi ha messo presenza")
+async def lista(interaction: discord.Interaction):
+    if not presenti:
+        await interaction.response.send_message("Nessuno ha ancora premuto! 😢")
+        return
+    lista_txt = ""
+    for user_id in presenti:
+        membro = interaction.guild.get_member(user_id)
+        if membro:
+            lista_txt += f"✅ {membro.display_name}\n"
+    await interaction.response.send_message(f"🦅 **PRESENTI ORA ({len(presenti)}):**\n\n{lista_txt}")
+
+@bot.tree.command(name="stop", description="Chiudi la presenza e mostra chi ha partecipato")
+async def stop(interaction: discord.Interaction):
     global presenza_attiva
     presenza_attiva = False
     if not presenti:
-        await ctx.send("❌ **PRESENZA DISATTIVATA**\n\nNessuno ha partecipato 😢")
+        await interaction.response.send_message("❌ **PRESENZA DISATTIVATA**\n\nNessuno ha partecipato 😢")
         return
-
-    lista = ""
+    lista_txt = ""
     for user_id in presenti:
-        membro = ctx.guild.get_member(user_id)
+        membro = interaction.guild.get_member(user_id)
         if membro:
-            lista += f"✅ {membro.display_name}\n"
-
-    await ctx.send(f"❌ **PRESENZA DISATTIVATA**\n\n🦅 **CHI HA PARTECIPATO ({len(presenti)}):**\n\n{lista}")
-
-@bot.command()
-async def lista(ctx):
-    if not presenti:
-        await ctx.send("Nessuno ha ancora premuto! 😢")
-        return
-    lista = ""
-    for user_id in presenti:
-        membro = ctx.guild.get_member(user_id)
-        if membro:
-            lista += f"✅ {membro.display_name}\n"
-    await ctx.send(f"🦅 **PRESENTI ORA ({len(presenti)}):**\n\n{lista}")
+            lista_txt += f"✅ {membro.display_name}\n"
+    await interaction.response.send_message(f"❌ **PRESENZA DISATTIVATA**\n\n🦅 **CHI HA PARTECIPATO ({len(presenti)}):**\n\n{lista_txt}")
 
 TOKEN = os.getenv("TOKEN")
 bot.run(TOKEN)
